@@ -1,0 +1,73 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: provision-team-environment
+  title: Provision Team Environment
+  description: Provision a new OpenShift namespace with resource quotas, network policies, and RBAC for a team using Ansible Automation Platform.
+  tags:
+    - ansible
+    - platform-engineering
+    - infrastructure
+spec:
+  owner: user:default/admin
+  type: infrastructure
+
+  parameters:
+    - title: Team Environment Details
+      required:
+        - teamName
+        - environmentTier
+      properties:
+        teamName:
+          title: Team Name
+          type: string
+          description: The name of the team. Used for the namespace prefix and RBAC group binding.
+          pattern: '^[a-z][a-z0-9-]*$'
+          maxLength: 30
+          ui:autofocus: true
+        environmentTier:
+          title: Environment Tier
+          type: string
+          description: Determines resource quotas and network policies.
+          default: dev
+          enum:
+            - dev
+            - staging
+            - prod
+          enumNames:
+            - Development (4 CPU / 8Gi RAM)
+            - Staging (8 CPU / 16Gi RAM)
+            - Production (16 CPU / 32Gi RAM)
+
+  steps:
+    - id: launch-ansible-job
+      name: Provision environment via Ansible
+      action: rhaap:launch-job-template
+      input:
+        # TEMPORARY: Hardcoded AAP token is required on RHDH 1.8 because
+        # the Ansible plugin (automation-portal 2.0/2.1) is incompatible
+        # with RHDH 1.9 (see ansible/ansible-backstage-plugins#248).
+        # Once Ansible plugin 2.2+ ships, upgrade to RHDH 1.9 and replace
+        # this with: token: ${{ secrets.AAP_TOKEN }}
+        # using scaffolder.defaultEnvironment.secrets in app-config.
+        token: <AAP_TOKEN>
+        values:
+          template: Provision Team Environment
+          extraVariables:
+            team_name: ${{ parameters.teamName }}
+            environment_tier: ${{ parameters.environmentTier }}
+
+  output:
+    text:
+      - title: Environment provisioned
+        content: |
+          **Namespace:** `${{ parameters.teamName }}-${{ parameters.environmentTier }}`
+
+          Your environment has been provisioned with:
+          - Resource quotas based on the **${{ parameters.environmentTier }}** tier
+          - Default-deny network policies with same-namespace ingress allowed
+          - RBAC role binding for the **${{ parameters.teamName }}** group
+          - Environment metadata ConfigMap
+    links:
+      - title: View in OpenShift Console
+        url: https://console-openshift-console.apps.<YOUR_CLUSTER_SUBDOMAIN>/k8s/cluster/namespaces/${{ parameters.teamName }}-${{ parameters.environmentTier }}

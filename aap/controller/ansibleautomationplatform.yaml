@@ -1,0 +1,15 @@
+apiVersion: aap.ansible.com/v1alpha1
+kind: AnsibleAutomationPlatform
+metadata:
+  name: aap
+  namespace: aap
+spec:
+  image_pull_policy: IfNotPresent
+  controller:
+    disabled: false
+  eda:
+    disabled: true
+  hub:
+    disabled: true
+  lightspeed:
+    disabled: true

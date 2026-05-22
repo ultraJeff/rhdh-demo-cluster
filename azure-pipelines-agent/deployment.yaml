@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-pipelines-agent
+  namespace: azure-pipelines
+  labels:
+    app: azure-pipelines-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: azure-pipelines-agent
+  template:
+    metadata:
+      labels:
+        app: azure-pipelines-agent
+    spec:
+      serviceAccountName: azure-pipelines-agent
+      containers:
+        - name: agent
+          image: consultent/azure-pipelines-vsts-agent:ubuntu-22.04
+          env:
+            - name: VSTS_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: azure-pipelines-agent
+                  key: VSTS_ACCOUNT
+            - name: VSTS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: azure-pipelines-agent
+                  key: VSTS_TOKEN
+            - name: VSTS_POOL
+              valueFrom:
+                secretKeyRef:
+                  name: azure-pipelines-agent
+                  key: VSTS_POOL
+            - name: VSTS_AGENT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          volumeMounts:
+            - name: workspace
+              mountPath: /azp/_work
+      volumes:
+        - name: workspace
+          emptyDir: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-pipelines-agent
+  namespace: azure-pipelines

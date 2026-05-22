@@ -1,0 +1,115 @@
+---
+- name: Provision Team Environment
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    team_name: "{{ team_name | default('demo-team') }}"
+    environment_tier: "{{ environment_tier | default('dev') }}"
+    namespace: "{{ team_name }}-{{ environment_tier }}"
+    cpu_limit: "{{ {'dev': '4', 'staging': '8', 'prod': '16'}[environment_tier] | default('4') }}"
+    memory_limit: "{{ {'dev': '8Gi', 'staging': '16Gi', 'prod': '32Gi'}[environment_tier] | default('8Gi') }}"
+
+  tasks:
+    - name: Create team namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: "{{ namespace }}"
+            labels:
+              team: "{{ team_name }}"
+              environment: "{{ environment_tier }}"
+              managed-by: ansible-automation-platform
+
+    - name: Create resource quota
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ResourceQuota
+          metadata:
+            name: "{{ team_name }}-quota"
+            namespace: "{{ namespace }}"
+          spec:
+            hard:
+              requests.cpu: "{{ cpu_limit }}"
+              requests.memory: "{{ memory_limit }}"
+              limits.cpu: "{{ cpu_limit }}"
+              limits.memory: "{{ memory_limit }}"
+              pods: "20"
+
+    - name: Create network policy - deny all ingress by default
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: default-deny-ingress
+            namespace: "{{ namespace }}"
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+
+    - name: Create network policy - allow same namespace
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-same-namespace
+            namespace: "{{ namespace }}"
+          spec:
+            podSelector: {}
+            ingress:
+              - from:
+                  - podSelector: {}
+
+    - name: Create team configmap with environment metadata
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: environment-info
+            namespace: "{{ namespace }}"
+          data:
+            TEAM_NAME: "{{ team_name }}"
+            ENVIRONMENT: "{{ environment_tier }}"
+            PROVISIONED_BY: "ansible-automation-platform"
+            PROVISIONED_AT: "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}"
+
+    - name: Create edit RoleBinding for team
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: "{{ team_name }}-edit"
+            namespace: "{{ namespace }}"
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: edit
+          subjects:
+            - apiGroup: rbac.authorization.k8s.io
+              kind: Group
+              name: "{{ team_name }}"
+
+    - name: Display provisioned environment details
+      ansible.builtin.debug:
+        msg: |
+          Environment provisioned successfully!
+          Namespace: {{ namespace }}
+          Team: {{ team_name }}
+          Tier: {{ environment_tier }}
+          CPU Limit: {{ cpu_limit }}
+          Memory Limit: {{ memory_limit }}

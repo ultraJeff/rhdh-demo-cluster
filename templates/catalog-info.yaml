@@ -1,0 +1,8 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: ansible-templates
+  description: Ansible-powered software templates
+spec:
+  targets:
+    - ./provision-team-env/template.yaml
