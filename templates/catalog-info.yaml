@@ -6,3 +6,5 @@ metadata:
 spec:
   targets:
     - ./provision-team-env/template.yaml
+    - ./deploy-app/template.yaml
+    - ./teardown-namespace/template.yaml

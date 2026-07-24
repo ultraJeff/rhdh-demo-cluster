@@ -2,8 +2,5 @@
 **/secrets/*.yaml
 !**/secrets/*.yaml.example
 
-# Templates with cluster-specific values
-**/template.yaml
-!**/template.yaml.example
 
 .DS_Store
